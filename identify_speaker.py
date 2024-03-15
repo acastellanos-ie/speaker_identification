@@ -111,20 +111,31 @@ def prepare_dataset(folders):
 
 def extract_audio_stream(uploaded_file):
     # Create a temporary file to save the uploaded video
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video_file:
         # Write the content of the uploaded file to the temporary file
-        tmp.write(uploaded_file.getvalue())
-        tmp_filename = tmp.name
+        tmp_video_file.write(uploaded_file.getvalue())
+        tmp_video_file_path = tmp_video_file.name
+    
+    # Initialize BytesIO object to hold the audio data
+    audio_bytes_io = io.BytesIO()
 
-    # Use the temporary file with moviepy to extract the audio
+    # Use a temporary file for the audio output
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_audio_file:
+        tmp_audio_file_path = tmp_audio_file.name
+    
     try:
-        with VideoFileClip(tmp_filename) as video:
-            audio_bytes_io = io.BytesIO()
-            video.audio.write_audiofile(audio_bytes_io, codec='pcm_s16le', nbytes=2, ffmpeg_params=["-ac", "1"])
+        # Extract audio using moviepy
+        with VideoFileClip(tmp_video_file_path) as video:
+            video.audio.write_audiofile(tmp_audio_file_path, codec='pcm_s16le', nbytes=2, ffmpeg_params=["-ac", "1"])
+        
+        # Read the audio file back into BytesIO
+        with open(tmp_audio_file_path, 'rb') as f_audio:
+            audio_bytes_io.write(f_audio.read())
             audio_bytes_io.seek(0)
     finally:
-        # Ensure the temporary file is deleted
-        os.remove(tmp_filename)
+        # Clean up temporary files
+        os.remove(tmp_video_file_path)
+        os.remove(tmp_audio_file_path)
 
     return audio_bytes_io
 
