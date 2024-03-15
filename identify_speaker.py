@@ -149,7 +149,7 @@ def main(model):
         st.video(uploaded_file)
         
         # Predict the speaker from the video
-        predicted_speaker = predict_speaker_from_video(uploaded_file, model, processor, label_map)
+        predicted_speaker = predict_speaker_from_video(uploaded_file, model, None, label_map)
             
         st.write(f"Predicted Speaker: {predicted_speaker}")
         
