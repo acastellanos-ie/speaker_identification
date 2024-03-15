@@ -20,8 +20,8 @@ import os
 
 from pathlib import Path
 
-natasa_path = Path(".data/natasa")
-eddy_path = Path("./data/eddy")
+natasa_path = Path("/data/natasa")
+eddy_path = Path("/data/eddy")
 
 
 def extract_audio_from_video(video_path, target_audio_path):
@@ -102,38 +102,37 @@ def prepare_dataset(folders):
 
 
 def predict_speaker_from_video(video_path, model, processor, label_map, segment_length=15):
-    # Temporary audio file path
-    temp_audio_path = "temp_audio.wav"
+    video_bytes_io = io.BytesIO(uploaded_file.getvalue())
     
-    # Extract audio from the video
-    video = VideoFileClip(video_path)
-    video.audio.write_audiofile(temp_audio_path)
-    video.close()
+    with VideoFileClip(video_bytes_io) as video:
+        audio_bytes_io = io.BytesIO()
+        video.audio.write_audiofile(audio_bytes_io, format='wav', codec='pcm_s16le')
+        audio_bytes_io.seek(0)  # Go to the start of the audio bytes-like object
     
-    # Load the audio file
-    y, sr = librosa.load(temp_audio_path, sr=None)
-    os.remove(temp_audio_path)  # Clean up the temporary audio file
+        # Load the audio file
+        y, sr = librosa.load(temp_audio_path, sr=None)
+        os.remove(temp_audio_path)  # Clean up the temporary audio file
 
-    # Process in segments and aggregate predictions (optional, depending on your model's training)
-    samples_per_segment = segment_length * sr
-    total_segments = int(np.ceil(len(y) / samples_per_segment))
-    predictions = []
-    
-    for segment in range(total_segments):
-        start_sample = segment * samples_per_segment
-        end_sample = start_sample + samples_per_segment
-        segment_data = y[start_sample:end_sample]
+        # Process in segments and aggregate predictions (optional, depending on your model's training)
+        samples_per_segment = segment_length * sr
+        total_segments = int(np.ceil(len(y) / samples_per_segment))
+        predictions = []
         
-        # Extract features
-        mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
-        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for a single sample prediction
+        for segment in range(total_segments):
+            start_sample = segment * samples_per_segment
+            end_sample = start_sample + samples_per_segment
+            segment_data = y[start_sample:end_sample]
+            
+            # Extract features
+            mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
+            mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for a single sample prediction
+            
+            # Predict the speaker for the segment
+            prediction = model.predict(mfccs_processed)
+            predictions.append(prediction[0])
         
-        # Predict the speaker for the segment
-        prediction = model.predict(mfccs_processed)
-        predictions.append(prediction[0])
-    
-    # Majority vote for the speaker prediction across segments
-    final_prediction = max(set(predictions), key=predictions.count)
+        # Majority vote for the speaker prediction across segments
+        final_prediction = max(set(predictions), key=predictions.count)
     
     # Map the numeric label back to the speaker name
     speaker_name = {value: key for key, value in label_map.items()}[final_prediction]
@@ -146,23 +145,18 @@ def main():
     uploaded_file = st.file_uploader("Choose a video file...", type=['mp4'])
 
     if uploaded_file is not None:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-            fp = os.path.join("tempDir", uploaded_file.name)
-            tmp_file.write(uploaded_file.read())
-            st.video(fp)
-
-            # Predict the speaker from the video
-            predicted_speaker = predict_speaker_from_video(fp, model, processor, label_map)
+        
+        st.video(uploaded_file)
+        
+        # Predict the speaker from the video
+        predicted_speaker = predict_speaker_from_video(uploaded_file, model, processor, label_map)
             
-            st.write(f"Predicted Speaker: {predicted_speaker}")
-            
-            # Cleanup
-            os.remove(fp)
+        st.write(f"Predicted Speaker: {predicted_speaker}")
+        
+#process_videos_in_folder(natasa_path)
+#process_videos_in_folder(eddy_path)
 
-# process_videos_in_folder(natasa_path)
-# process_videos_in_folder(eddy_path)
-
-folders = [Path("./data/natasa"), Path("./data/eddy")]
+folders = [Path("/data/natasa"), Path("/data/eddy")]
 X, y, label_map = prepare_dataset(folders)
 
 # Split the dataset into training and testing sets
