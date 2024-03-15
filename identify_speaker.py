@@ -25,6 +25,10 @@ import subprocess
 
 from pathlib import Path
 
+from moviepy.editor import VideoFileClip
+from pydub import AudioSegment
+import io
+
 natasa_path = Path("./data/natasa")
 eddy_path = Path("./data/eddy")
 
@@ -105,38 +109,29 @@ def prepare_dataset(folders):
 
     return np.array(X), np.array(y), label_to_int
 
+def extract_audio_stream(uploaded_file):
+    """
+    Extracts audio from the uploaded video file using moviepy and converts
+    it to an audio stream compatible with librosa.
+    """
+    with VideoFileClip(uploaded_file.name) as video:
+        audio = video.audio
+        audio_bytes_io = io.BytesIO()
+        audio.write_audiofile(audio_bytes_io, codec='pcm_s16le', nbytes=2, ffmpeg_params=["-ac", "1"])
+        audio_bytes_io.seek(0)
+
+    # Convert to pydub AudioSegment for easier handling/manipulation if needed
+    audio_segment = AudioSegment.from_file(audio_bytes_io, format="wav")
+    audio_bytes_io.seek(0)  # Reset stream position if further processing needed
+
+    return audio_bytes_io, audio_segment
 
 def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=15):
-    """
-    Predict the speaker from an uploaded video file, using ffmpeg to extract audio.
+    audio_stream = extract_audio_stream(uploaded_file)
     
-    Args:
-    uploaded_file: The uploaded file object from Streamlit.
-    model: The trained machine learning model for prediction.
-    label_map: A dictionary mapping numerical labels to speaker names.
-    segment_length: Length of each audio segment for processing, in seconds.
-
-    Returns:
-    The name of the predicted speaker.
-    """
-    # Create a BytesIO stream from the uploaded video file
-    video_stream = io.BytesIO(uploaded_file.getvalue())
-
-    # Prepare ffmpeg command to extract audio
-    command = ['ffmpeg', '-i', 'pipe:0', '-f', 'wav', 'pipe:1']
-
-    # Run ffmpeg to extract audio directly to stdout and stderr to pipe
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = process.communicate(input=video_stream.getvalue())
-
-    if process.returncode != 0:
-        raise Exception(f"ffmpeg error: {err.decode()}")
-
-    # Audio data is now in 'out', load it with librosa from BytesIO
-    audio_stream = io.BytesIO(out)
+    # Load the audio with librosa directly from the BytesIO object
     y, sr = librosa.load(audio_stream, sr=None)
-
-    # Process the audio in segments and predict
+    
     predictions = []
     samples_per_segment = segment_length * sr
     total_segments = int(np.ceil(len(y) / samples_per_segment))
@@ -146,20 +141,15 @@ def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=1
         end_sample = start_sample + samples_per_segment
         segment_data = y[start_sample:end_sample]
 
-        # Extract MFCC features from the segment
         mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
-        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for single sample prediction
+        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)
         
-        # Predict the speaker for the segment using the model
         prediction = model.predict(mfccs_processed)
         predictions.append(prediction[0])
-
-    # Determine the most common prediction across all segments
+    
     final_prediction = max(set(predictions), key=predictions.count)
-
-    # Map the numeric label back to the speaker's name using label_map
     speaker_name = label_map[final_prediction]
-
+    
     return speaker_name
 
 def main(model):
@@ -170,7 +160,7 @@ def main(model):
     if uploaded_file is not None:
         st.video(uploaded_file)
         
-        # Assuming label_map is defined
+        # Assuming label_map and model are defined
         predicted_speaker = predict_speaker_from_video(uploaded_file, model, label_map)
             
         st.write(f"Predicted Speaker: {predicted_speaker}")
@@ -192,7 +182,6 @@ if __name__ == '__main__':
     clf.fit(X_train, y_train)
 
     main(clf)
-
 
 
 
