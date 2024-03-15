@@ -185,6 +185,8 @@ def main(model):
 
 if __name__ == '__main__':
     folders = [Path("./data/natasa"), Path("./data/eddy")]
+    label_map = {0: 'natasa', 1: 'eddy'}  # Example label map
+
     X, y, label_map = prepare_dataset(folders)
 
     # Split the dataset into training and testing sets
