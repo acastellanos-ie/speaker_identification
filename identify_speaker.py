@@ -185,9 +185,9 @@ def main(model):
 
 if __name__ == '__main__':
     folders = [Path("./data/natasa"), Path("./data/eddy")]
-    label_map = {0: 'natasa', 1: 'eddy'}  # Example label map
 
     X, y, label_map = prepare_dataset(folders)
+    label_map = {0: 'natasa', 1: 'eddy'}  # Example label map
 
     # Split the dataset into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
