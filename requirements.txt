@@ -5,3 +5,4 @@ scikit-learn
 pydub
 imageio-ffmpeg
 numpy
+python-ffmpeg
