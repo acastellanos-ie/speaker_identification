@@ -102,7 +102,7 @@ def prepare_dataset(folders):
     return np.array(X), np.array(y), label_to_int
 
 
-def predict_speaker_from_video(video_path, model, processor, label_map, segment_length=15):
+def predict_speaker_from_video(uploaded_file, model, processor, label_map, segment_length=15):
     video_bytes_io = io.BytesIO(uploaded_file.getvalue())
 
     with VideoFileClip(video_bytes_io) as video:
@@ -169,7 +169,6 @@ if __name__ == '__main__':
     clf.fit(X_train, y_train)
 
     main(clf)
-
 
 
 
