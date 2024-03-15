@@ -19,6 +19,8 @@ import tempfile
 import os
 import io
 
+import ffmpeg
+
 from pathlib import Path
 
 natasa_path = Path("./data/natasa")
@@ -104,7 +106,7 @@ def prepare_dataset(folders):
 
 def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=15):
     """
-    Predict the speaker from an uploaded video file.
+    Predict the speaker from an uploaded video file using ffmpeg-python for audio extraction.
 
     Args:
     uploaded_file: The uploaded file object from Streamlit.
@@ -115,43 +117,39 @@ def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=1
     Returns:
     The name of the predicted speaker.
     """
-    # Convert the uploaded file to a bytes-like object and read the video
-    video_bytes_io = io.BytesIO(uploaded_file.getvalue())
-    
-    # Extract audio from the video
-    with VideoFileClip(video_bytes_io) as video:
-        audio_bytes_io = io.BytesIO()
-        video.audio.write_audiofile(audio_bytes_io, format='wav', codec='pcm_s16le')
-        audio_bytes_io.seek(0)  # Go to the start of the audio bytes-like object
+    # Use ffmpeg to extract audio directly from the uploaded video bytes
+    try:
+        out, _ = (
+            ffmpeg
+            .input('pipe:0')
+            .output('pipe:1', format='wav')
+            .run(input=uploaded_file.getvalue(), capture_stdout=True, capture_stderr=True)
+        )
+    except ffmpeg.Error as e:
+        print('ffmpeg error:', e.stderr)
+        raise e
 
-        # Use librosa to load the audio directly from the BytesIO object
-        y, sr = librosa.load(audio_bytes_io, sr=None)
+    audio_bytes_io = io.BytesIO(out)  # Convert ffmpeg output to BytesIO for further processing
+
+    # Load the audio with librosa directly from the BytesIO object
+    y, sr = librosa.load(audio_bytes_io, sr=None)
     
-    # Initialize predictions list for storing predictions of each segment
     predictions = []
-    
-    # Calculate the number of samples per segment based on the segment length and sample rate
     samples_per_segment = segment_length * sr
     total_segments = int(np.ceil(len(y) / samples_per_segment))
     
-    # Process audio in segments for prediction
     for segment in range(total_segments):
         start_sample = segment * samples_per_segment
         end_sample = start_sample + samples_per_segment
         segment_data = y[start_sample:end_sample]
-        
-        # Extract MFCC features from the segment
+
         mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
-        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for single sample prediction
-        
-        # Predict the speaker for the segment using the model
+        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)
+
         prediction = model.predict(mfccs_processed)
         predictions.append(prediction[0])
     
-    # Determine the most common prediction across all segments
     final_prediction = max(set(predictions), key=predictions.count)
-    
-    # Map the numeric label back to the speaker's name using label_map
     speaker_name = label_map[final_prediction]
     
     return speaker_name
@@ -162,13 +160,14 @@ def main(model):
     uploaded_file = st.file_uploader("Choose a video file...", type=['mp4'])
 
     if uploaded_file is not None:
-        
         st.video(uploaded_file)
         
-        # Predict the speaker from the video
-        predicted_speaker = predict_speaker_from_video(uploaded_file, model, None, label_map)
+        # Assuming label_map is defined
+        predicted_speaker = predict_speaker_from_video(uploaded_file, model, label_map)
             
         st.write(f"Predicted Speaker: {predicted_speaker}")
+
+
         
 #process_videos_in_folder(natasa_path)
 #process_videos_in_folder(eddy_path)
