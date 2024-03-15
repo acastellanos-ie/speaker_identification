@@ -2,3 +2,4 @@ librosa
 moviepy
 ffmpeg-python
 imageio-ffmpeg==0.4.7
+pydub
