@@ -110,21 +110,23 @@ def prepare_dataset(folders):
     return np.array(X), np.array(y), label_to_int
 
 def extract_audio_stream(uploaded_file):
-    """
-    Extracts audio from the uploaded video file using moviepy and converts
-    it to an audio stream compatible with librosa.
-    """
-    with VideoFileClip(uploaded_file.name) as video:
-        audio = video.audio
-        audio_bytes_io = io.BytesIO()
-        audio.write_audiofile(audio_bytes_io, codec='pcm_s16le', nbytes=2, ffmpeg_params=["-ac", "1"])
-        audio_bytes_io.seek(0)
+    # Create a temporary file to save the uploaded video
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        # Write the content of the uploaded file to the temporary file
+        tmp.write(uploaded_file.getvalue())
+        tmp_filename = tmp.name
 
-    # Convert to pydub AudioSegment for easier handling/manipulation if needed
-    audio_segment = AudioSegment.from_file(audio_bytes_io, format="wav")
-    audio_bytes_io.seek(0)  # Reset stream position if further processing needed
+    # Use the temporary file with moviepy to extract the audio
+    try:
+        with VideoFileClip(tmp_filename) as video:
+            audio_bytes_io = io.BytesIO()
+            video.audio.write_audiofile(audio_bytes_io, codec='pcm_s16le', nbytes=2, ffmpeg_params=["-ac", "1"])
+            audio_bytes_io.seek(0)
+    finally:
+        # Ensure the temporary file is deleted
+        os.remove(tmp_filename)
 
-    return audio_bytes_io, audio_segment
+    return audio_bytes_io
 
 def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=15):
     audio_stream = extract_audio_stream(uploaded_file)
