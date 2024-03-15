@@ -20,6 +20,8 @@ import os
 import io
 
 import ffmpeg
+import subprocess
+
 
 from pathlib import Path
 
@@ -106,8 +108,8 @@ def prepare_dataset(folders):
 
 def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=15):
     """
-    Predict the speaker from an uploaded video file using ffmpeg-python for audio extraction.
-
+    Predict the speaker from an uploaded video file, using ffmpeg to extract audio.
+    
     Args:
     uploaded_file: The uploaded file object from Streamlit.
     model: The trained machine learning model for prediction.
@@ -117,23 +119,24 @@ def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=1
     Returns:
     The name of the predicted speaker.
     """
-    # Use ffmpeg to extract audio directly from the uploaded video bytes
-    try:
-        out, _ = (
-            ffmpeg
-            .input('pipe:0')
-            .output('pipe:1', format='wav')
-            .run(input=uploaded_file.getvalue(), capture_stdout=True, capture_stderr=True)
-        )
-    except ffmpeg.Error as e:
-        print('ffmpeg error:', e.stderr)
-        raise e
+    # Create a BytesIO stream from the uploaded video file
+    video_stream = io.BytesIO(uploaded_file.getvalue())
 
-    audio_bytes_io = io.BytesIO(out)  # Convert ffmpeg output to BytesIO for further processing
+    # Prepare ffmpeg command to extract audio
+    command = ['ffmpeg', '-i', 'pipe:0', '-f', 'wav', 'pipe:1']
 
-    # Load the audio with librosa directly from the BytesIO object
-    y, sr = librosa.load(audio_bytes_io, sr=None)
-    
+    # Run ffmpeg to extract audio directly to stdout and stderr to pipe
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = process.communicate(input=video_stream.getvalue())
+
+    if process.returncode != 0:
+        raise Exception(f"ffmpeg error: {err.decode()}")
+
+    # Audio data is now in 'out', load it with librosa from BytesIO
+    audio_stream = io.BytesIO(out)
+    y, sr = librosa.load(audio_stream, sr=None)
+
+    # Process the audio in segments and predict
     predictions = []
     samples_per_segment = segment_length * sr
     total_segments = int(np.ceil(len(y) / samples_per_segment))
@@ -143,15 +146,20 @@ def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=1
         end_sample = start_sample + samples_per_segment
         segment_data = y[start_sample:end_sample]
 
+        # Extract MFCC features from the segment
         mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
-        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)
-
+        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for single sample prediction
+        
+        # Predict the speaker for the segment using the model
         prediction = model.predict(mfccs_processed)
         predictions.append(prediction[0])
-    
+
+    # Determine the most common prediction across all segments
     final_prediction = max(set(predictions), key=predictions.count)
+
+    # Map the numeric label back to the speaker's name using label_map
     speaker_name = label_map[final_prediction]
-    
+
     return speaker_name
 
 def main(model):
@@ -184,6 +192,7 @@ if __name__ == '__main__':
     clf.fit(X_train, y_train)
 
     main(clf)
+
 
 
 
