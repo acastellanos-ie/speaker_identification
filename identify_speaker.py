@@ -20,8 +20,8 @@ import os
 
 from pathlib import Path
 
-natasa_path = Path("C:/Users/MADCASTEA/OneDrive - JT International/Documents/Python Scripts/speaker_identification/data/natasa")
-eddy_path = Path("C:/Users/MADCASTEA/OneDrive - JT International/Documents/Python Scripts/speaker_identification/data/eddy")
+natasa_path = Path("data/natasa")
+eddy_path = Path("/data/eddy")
 
 
 def extract_audio_from_video(video_path, target_audio_path):
@@ -159,10 +159,10 @@ def main():
             # Cleanup
             os.remove(fp)
 
-process_videos_in_folder(natasa_path)
-process_videos_in_folder(eddy_path)
+# process_videos_in_folder(natasa_path)
+# process_videos_in_folder(eddy_path)
 
-folders = [Path("C:/Users/MADCASTEA/OneDrive - JT International/Documents/Python Scripts/speaker_identification/data/natasa"), Path("C:/Users/MADCASTEA/OneDrive - JT International/Documents/Python Scripts/speaker_identification/data/eddy")]
+folders = [Path("/data/natasa"), Path("/data/eddy")]
 X, y, label_map = prepare_dataset(folders)
 
 # Split the dataset into training and testing sets
