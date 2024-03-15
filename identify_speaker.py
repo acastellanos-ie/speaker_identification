@@ -139,7 +139,7 @@ def predict_speaker_from_video(video_path, model, processor, label_map, segment_
     
     return speaker_name
 
-def main():
+def main(model):
     st.title('Speaker Identification App')
 
     uploaded_file = st.file_uploader("Choose a video file...", type=['mp4'])
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
 
-    main()
+    main(clf)
 
 
 
