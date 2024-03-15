@@ -102,41 +102,57 @@ def prepare_dataset(folders):
     return np.array(X), np.array(y), label_to_int
 
 
-def predict_speaker_from_video(uploaded_file, model, processor, label_map, segment_length=15):
-    video_bytes_io = io.BytesIO(uploaded_file.getvalue())
+def predict_speaker_from_video(uploaded_file, model, label_map, segment_length=15):
+    """
+    Predict the speaker from an uploaded video file.
 
+    Args:
+    uploaded_file: The uploaded file object from Streamlit.
+    model: The trained machine learning model for prediction.
+    label_map: A dictionary mapping numerical labels to speaker names.
+    segment_length: Length of each audio segment for processing, in seconds.
+
+    Returns:
+    The name of the predicted speaker.
+    """
+    # Convert the uploaded file to a bytes-like object and read the video
+    video_bytes_io = io.BytesIO(uploaded_file.getvalue())
+    
+    # Extract audio from the video
     with VideoFileClip(video_bytes_io) as video:
         audio_bytes_io = io.BytesIO()
         video.audio.write_audiofile(audio_bytes_io, format='wav', codec='pcm_s16le')
         audio_bytes_io.seek(0)  # Go to the start of the audio bytes-like object
-    
-        # Load the audio file
-        y, sr = librosa.load(temp_audio_path, sr=None)
-        os.remove(temp_audio_path)  # Clean up the temporary audio file
 
-        # Process in segments and aggregate predictions (optional, depending on your model's training)
-        samples_per_segment = segment_length * sr
-        total_segments = int(np.ceil(len(y) / samples_per_segment))
-        predictions = []
-        
-        for segment in range(total_segments):
-            start_sample = segment * samples_per_segment
-            end_sample = start_sample + samples_per_segment
-            segment_data = y[start_sample:end_sample]
-            
-            # Extract features
-            mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
-            mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for a single sample prediction
-            
-            # Predict the speaker for the segment
-            prediction = model.predict(mfccs_processed)
-            predictions.append(prediction[0])
-        
-        # Majority vote for the speaker prediction across segments
-        final_prediction = max(set(predictions), key=predictions.count)
+        # Use librosa to load the audio directly from the BytesIO object
+        y, sr = librosa.load(audio_bytes_io, sr=None)
     
-    # Map the numeric label back to the speaker name
-    speaker_name = {value: key for key, value in label_map.items()}[final_prediction]
+    # Initialize predictions list for storing predictions of each segment
+    predictions = []
+    
+    # Calculate the number of samples per segment based on the segment length and sample rate
+    samples_per_segment = segment_length * sr
+    total_segments = int(np.ceil(len(y) / samples_per_segment))
+    
+    # Process audio in segments for prediction
+    for segment in range(total_segments):
+        start_sample = segment * samples_per_segment
+        end_sample = start_sample + samples_per_segment
+        segment_data = y[start_sample:end_sample]
+        
+        # Extract MFCC features from the segment
+        mfccs = librosa.feature.mfcc(y=segment_data, sr=sr, n_mfcc=13)
+        mfccs_processed = np.mean(mfccs.T, axis=0).reshape(1, -1)  # Reshape for single sample prediction
+        
+        # Predict the speaker for the segment using the model
+        prediction = model.predict(mfccs_processed)
+        predictions.append(prediction[0])
+    
+    # Determine the most common prediction across all segments
+    final_prediction = max(set(predictions), key=predictions.count)
+    
+    # Map the numeric label back to the speaker's name using label_map
+    speaker_name = label_map[final_prediction]
     
     return speaker_name
 
