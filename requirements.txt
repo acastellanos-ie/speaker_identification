@@ -1,5 +1,7 @@
-librosa
+streamlit
 moviepy
-ffmpeg-python
-imageio-ffmpeg==0.4.7
+librosa
+scikit-learn
 pydub
+imageio-ffmpeg
+numpy
