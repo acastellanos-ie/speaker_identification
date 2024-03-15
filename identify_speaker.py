@@ -156,17 +156,17 @@ def main():
 #process_videos_in_folder(natasa_path)
 #process_videos_in_folder(eddy_path)
 
-folders = [Path("./data/natasa"), Path("./data/eddy")]
-X, y, label_map = prepare_dataset(folders)
-
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Initialize and train the RandomForest classifier
-clf = RandomForestClassifier(n_estimators=100, random_state=42)
-clf.fit(X_train, y_train)
-
 if __name__ == '__main__':
+    folders = [Path("./data/natasa"), Path("./data/eddy")]
+    X, y, label_map = prepare_dataset(folders)
+
+    # Split the dataset into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Initialize and train the RandomForest classifier
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf.fit(X_train, y_train)
+
     main()
 
 
